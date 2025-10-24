@@ -13,14 +13,11 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
-    # --- 여기가 수정된 부분: session_state 초기화 위치 변경 ---
     if 'log_data' not in st.session_state:
         st.session_state.log_data = {}
 
     st.subheader("📊 업로드된 로그 데이터 확인")
-
-    # 기존 데이터를 지우고 새로 업로드된 파일만 처리
-    st.session_state.log_data.clear() 
+    st.session_state.log_data.clear()
 
     for uploaded_file in uploaded_files:
         profile_name = uploaded_file.name.replace('.csv', '')
@@ -29,9 +26,18 @@ if uploaded_files:
             bytes_data = uploaded_file.getvalue()
             stringio = io.StringIO(bytes_data.decode('utf-8'))
             
-            # --- 여기가 수정된 부분: index_col=0 추가 ---
-            df = pd.read_csv(stringio, index_col=0) 
+            # --- 여기가 수정된 부분 ---
+            # 먼저 헤더만 읽어서 첫 번째 열 이름 확인
+            first_cols = pd.read_csv(io.StringIO(bytes_data.decode('utf-8')), nrows=0).columns
             
+            # 첫 번째 열 이름이 'Unnamed: 0' 이거나 비어있는 경우 index_col=0 사용
+            if 'Unnamed: 0' in first_cols[0] or first_cols[0] == '':
+                 df = pd.read_csv(io.StringIO(bytes_data.decode('utf-8')), index_col=0)
+            else:
+                 # 그렇지 않으면 index_col 없이 읽기
+                 df = pd.read_csv(io.StringIO(bytes_data.decode('utf-8')))
+            # --- 수정 끝 ---
+
             st.session_state.log_data[profile_name] = df
 
             st.write(f"---")
@@ -46,10 +52,8 @@ if uploaded_files:
 
         except Exception as e:
             st.error(f"'{uploaded_file.name}' 파일을 읽는 중 오류 발생: {e}")
-            # 오류 발생 시 해당 프로파일 데이터 제거
             if profile_name in st.session_state.log_data:
                 del st.session_state.log_data[profile_name]
 
-# --- session_state에 데이터가 없을 경우 안내 메시지 표시 ---
 if not uploaded_files and 'log_data' not in st.session_state or not st.session_state.get('log_data'):
      st.info("분석할 CSV 파일을 업로드해주세요.")
