@@ -21,7 +21,7 @@ def calculate_ror(df):
 # --- UI 및 앱 실행 로직 ---
 st.set_page_config(layout="wide")
 st.title("🔥 Ikawa Roast Log Analyzer")
-st.markdown("**(v.1.0 - Final Fan Axis Scaling)**") # 버전 업데이트
+st.markdown("**(v.1.0 2025.10.24)**") # 버전 업데이트
 
 # --- Session State 초기화 (변경 없음) ---
 if 'processed_logs' not in st.session_state: st.session_state.processed_logs = {}
@@ -151,12 +151,10 @@ if st.session_state.processed_logs:
     graph_col, analysis_col = st.columns([0.7, 0.3])
     max_time = 0
     selected_logs = {name: st.session_state.processed_logs[name] for name in st.session_state.get('selected_profiles', []) if name in st.session_state.processed_logs}
-    has_high_scale_fan = False
-    has_low_scale_fan = False
+    has_high_scale_fan = False; has_low_scale_fan = False
     FAN_SCALE_THRESHOLD = 2000
     for df in selected_logs.values():
-        if TIME_COL in df.columns and not df[TIME_COL].dropna().empty:
-            max_time = max(max_time, df[TIME_COL].max())
+        if TIME_COL in df.columns and not df[TIME_COL].dropna().empty: max_time = max(max_time, df[TIME_COL].max())
         if FAN_SPEED_COL in df.columns and not df[FAN_SPEED_COL].dropna().empty:
             max_fan = df[FAN_SPEED_COL].max()
             if max_fan > FAN_SCALE_THRESHOLD: has_high_scale_fan = True
@@ -164,6 +162,7 @@ if st.session_state.processed_logs:
     max_time = max(max_time, 1)
 
     with graph_col:
+        # 사용자 지정 비율 적용
         fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_heights=[0.7, 0.2, 0.1], vertical_spacing=0.03, specs=[[{"secondary_y": True}], [{"secondary_y": True}], [{"secondary_y": True}]])
         selected_profiles_data = st.session_state.get('selected_profiles', [])
         colors = px.colors.qualitative.Plotly
@@ -198,15 +197,12 @@ if st.session_state.processed_logs:
                     valid_df_fan = df.dropna(subset=[TIME_COL, FAN_SPEED_COL])
                     if len(valid_df_fan) > 1:
                         is_high_scale = valid_df_fan[FAN_SPEED_COL].max() > FAN_SCALE_THRESHOLD
-                        # --- 여기가 수정된 부분: Low 스케일만 있을 때 Primary Y축 사용 ---
-                        if not has_high_scale_fan and has_low_scale_fan: # Low 스케일만 있는 경우
-                            fig.add_trace(go.Scatter(x=valid_df_fan[TIME_COL], y=valid_df_fan[FAN_SPEED_COL], mode='lines', name=f'{name} Fan Speed (Low)', line=dict(color=color, dash='solid'), showlegend=True), row=3, col=1, secondary_y=False) # Primary Y축에 그리기
-                        elif is_high_scale: # High 스케일이거나 둘 다 있는 경우 High 스케일
+                        if not has_high_scale_fan and has_low_scale_fan:
+                            fig.add_trace(go.Scatter(x=valid_df_fan[TIME_COL], y=valid_df_fan[FAN_SPEED_COL], mode='lines', name=f'{name} Fan Speed (Low)', line=dict(color=color, dash='solid'), showlegend=True), row=3, col=1, secondary_y=False)
+                        elif is_high_scale:
                             fig.add_trace(go.Scatter(x=valid_df_fan[TIME_COL], y=valid_df_fan[FAN_SPEED_COL], mode='lines', name=f'{name} Fan Speed (High)', line=dict(color=color, dash='solid'), showlegend=True), row=3, col=1, secondary_y=False)
-                        else: # Low 스케일이고 High 스케일도 함께 있는 경우 Low 스케일
+                        else:
                             fig.add_trace(go.Scatter(x=valid_df_fan[TIME_COL], y=valid_df_fan[FAN_SPEED_COL], mode='lines', name=f'{name} Fan Speed (Low)', line=dict(color=color, dash='solid'), showlegend=True), row=3, col=1, secondary_y=True)
-                        # --- 수정 끝 ---
-
 
         selected_time_int = int(st.session_state.get('selected_time', 0)); fig.add_vline(x=selected_time_int, line_width=1, line_dash="dash", line_color="grey")
         axis_ranges = st.session_state.axis_ranges
@@ -218,30 +214,74 @@ if st.session_state.processed_logs:
         fig.update_yaxes(title_text="ROR (℃/sec)", range=axis_ranges['y_ror'], showgrid=False, row=1, col=1, secondary_y=True)
         fig.update_yaxes(title_text="Abs Humidity", range=axis_ranges['y_hum1'], row=2, col=1, secondary_y=False)
         fig.update_yaxes(title_text="Humidity RoC", range=axis_ranges['y_hum2'], showgrid=False, row=2, col=1, secondary_y=True)
-
-        # --- 여기가 수정된 부분: 팬 Y축 동적 설정 ---
-        if not has_high_scale_fan and has_low_scale_fan: # Low 스케일만 있을 때
-            fig.update_yaxes(title_text="Fan Speed (Low)", range=axis_ranges['y_fan2'], row=3, col=1, secondary_y=False) # 주축을 Low 스케일로
-            fig.update_yaxes(visible=False, row=3, col=1, secondary_y=True) # 보조축 숨김
-        elif has_high_scale_fan and not has_low_scale_fan: # High 스케일만 있을 때
-            fig.update_yaxes(title_text="Fan Speed (High)", range=axis_ranges['y_fan1'], row=3, col=1, secondary_y=False) # 주축을 High 스케일로
-            fig.update_yaxes(visible=False, row=3, col=1, secondary_y=True) # 보조축 숨김
-        elif has_high_scale_fan and has_low_scale_fan: # 둘 다 있을 때
+        if not has_high_scale_fan and has_low_scale_fan:
+            fig.update_yaxes(title_text="Fan Speed (Low)", range=axis_ranges['y_fan2'], row=3, col=1, secondary_y=False)
+            fig.update_yaxes(visible=False, row=3, col=1, secondary_y=True)
+        elif has_high_scale_fan and not has_low_scale_fan:
+            fig.update_yaxes(title_text="Fan Speed (High)", range=axis_ranges['y_fan1'], row=3, col=1, secondary_y=False)
+            fig.update_yaxes(visible=False, row=3, col=1, secondary_y=True)
+        elif has_high_scale_fan and has_low_scale_fan:
             fig.update_yaxes(title_text="Fan Speed (High)", range=axis_ranges['y_fan1'], row=3, col=1, secondary_y=False)
             fig.update_yaxes(title_text="Fan Speed (Low)", range=axis_ranges['y_fan2'], showgrid=False, row=3, col=1, secondary_y=True)
-        else: # 팬 데이터 없을 때 (기본값)
+        else:
             fig.update_yaxes(title_text="Fan Speed (High)", range=axis_ranges['y_fan1'], row=3, col=1, secondary_y=False)
             fig.update_yaxes(title_text="Fan Speed (Low)", range=axis_ranges['y_fan2'], showgrid=False, row=3, col=1, secondary_y=True)
-        # --- 수정 끝 ---
-
         st.plotly_chart(fig, use_container_width=True)
 
+    # --- 여기가 수정된 부분: 분석 패널 코드 복원 ---
     with analysis_col:
-        # (분석 패널 코드는 이전과 동일 - 코드 생략)
         st.subheader("🔍 분석 정보"); st.markdown("---")
-        st.write("**총 로스팅 시간**"); # ... (이하 동일) ...
-        # ... (슬라이더 및 상세 정보 표시 코드 동일) ...
-
+        st.write("**총 로스팅 시간**")
+        for name in selected_profiles_data: # selected_profiles_data 사용
+            df = st.session_state.processed_logs.get(name) # processed_logs 사용
+            if df is not None and TIME_COL in df.columns:
+                valid_df = df.dropna(subset=[TIME_COL])
+                if not valid_df.empty:
+                    total_time = valid_df[TIME_COL].max(); time_str = f"{int(total_time // 60)}분 {int(total_time % 60)}초"
+                    st.markdown(f"**{name}**: <span style='font-size: 1.1em;'>{time_str}</span>", unsafe_allow_html=True)
+        st.markdown("---")
+        def update_slider_time():
+            st.session_state.selected_time = st.session_state.time_slider
+        selected_time_val = st.session_state.get('selected_time', 0)
+        slider_max_time = max(1, int(max_time))
+        if selected_time_val > slider_max_time:
+            selected_time_val = slider_max_time
+            st.session_state.selected_time = selected_time_val
+        st.slider("시간 선택 (초)", 0, slider_max_time, selected_time_val, 1, key="time_slider", on_change=update_slider_time)
+        st.write(""); st.write("**선택된 시간 상세 정보**")
+        selected_time = st.session_state.selected_time; st.markdown(f"#### {int(selected_time // 60)}분 {int(selected_time % 60):02d}초 ({selected_time}초)")
+        for name in selected_profiles_data: # selected_profiles_data 사용
+            st.markdown(f"<p style='margin-bottom: 0.2em;'><strong>{name}</strong></p>", unsafe_allow_html=True)
+            exhaust_temp_str, inlet_temp_str, ror_str = "--", "--", "--"
+            fan_speed_str, humidity_str, humidity_roc_str = "--", "--", "--"
+            df = st.session_state.processed_logs.get(name) # processed_logs 사용
+            if df is not None:
+                if TIME_COL not in df.columns: continue
+                if EXHAUST_TEMP_COL in df.columns:
+                    valid_exhaust = df.dropna(subset=[TIME_COL, EXHAUST_TEMP_COL])
+                    if len(valid_exhaust) > 1 and selected_time <= valid_exhaust[TIME_COL].max(): hover_exhaust = np.interp(selected_time, valid_exhaust[TIME_COL], valid_exhaust[EXHAUST_TEMP_COL]); exhaust_temp_str = f"{hover_exhaust:.1f}℃"
+                if INLET_TEMP_COL in df.columns:
+                    valid_inlet = df.dropna(subset=[TIME_COL, INLET_TEMP_COL])
+                    if len(valid_inlet) > 1 and selected_time <= valid_inlet[TIME_COL].max(): hover_inlet = np.interp(selected_time, valid_inlet[TIME_COL], valid_inlet[INLET_TEMP_COL]); inlet_temp_str = f"{hover_inlet:.1f}℃"
+                if EXHAUST_ROR_COL in df.columns:
+                    valid_ror = df.dropna(subset=[TIME_COL, EXHAUST_ROR_COL])
+                    if len(valid_ror) > 1 and selected_time <= valid_ror[TIME_COL].max(): hover_ror = np.interp(selected_time, valid_ror[TIME_COL], valid_ror[EXHAUST_ROR_COL]); ror_str = f"{hover_ror:.3f}℃/sec"
+                if FAN_SPEED_COL in df.columns:
+                    valid_fan = df.dropna(subset=[TIME_COL, FAN_SPEED_COL])
+                    if len(valid_fan) > 1 and selected_time <= valid_fan[TIME_COL].max(): hover_fan = np.interp(selected_time, valid_fan[TIME_COL], valid_fan[FAN_SPEED_COL]); fan_speed_str = f"{hover_fan:.1f}"
+                if HUMIDITY_COL in df.columns:
+                    valid_hum = df.dropna(subset=[TIME_COL, HUMIDITY_COL])
+                    if len(valid_hum) > 1 and selected_time <= valid_hum[TIME_COL].max(): hover_hum = np.interp(selected_time, valid_hum[TIME_COL], valid_hum[HUMIDITY_COL]); humidity_str = f"{hover_hum:.2f}"
+                if HUMIDITY_ROC_COL in df.columns:
+                     valid_hum_roc = df.dropna(subset=[TIME_COL, HUMIDITY_ROC_COL])
+                     if len(valid_hum_roc) > 1 and selected_time <= valid_hum_roc[TIME_COL].max(): hover_hum_roc = np.interp(selected_time, valid_hum_roc[TIME_COL], valid_hum_roc[HUMIDITY_ROC_COL]); humidity_roc_str = f"{hover_hum_roc:.4f}"
+            st.markdown(f"<p style='margin:0; font-size: 0.95em;'>&nbsp;&nbsp;• Exhaust Temp: {exhaust_temp_str}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='margin:0; font-size: 0.95em;'>&nbsp;&nbsp;• Inlet Temp: {inlet_temp_str}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='margin:0; font-size: 0.95em;'>&nbsp;&nbsp;• Exhaust ROR: {ror_str}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='margin:0; font-size: 0.95em;'>&nbsp;&nbsp;• Fan Speed: {fan_speed_str}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='margin:0; font-size: 0.95em;'>&nbsp;&nbsp;• Abs Humidity: {humidity_str}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='margin-bottom:0.8em; font-size: 0.95em;'>&nbsp;&nbsp;• Humidity RoC: {humidity_roc_str}</p>", unsafe_allow_html=True)
+    # --- 분석 패널 코드 복원 끝 ---
 
 elif not uploaded_files:
     st.info("분석할 CSV 파일을 업로드해주세요.")
