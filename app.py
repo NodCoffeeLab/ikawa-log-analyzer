@@ -7,55 +7,8 @@ from plotly.subplots import make_subplots
 import plotly.express as px
 
 # --- 백엔드 함수 (변경 없음) ---
-# ... (create_new_profile, create_new_fan_profile, sync_profile_data, sync_fan_data, calculate_ror) ...
-def create_new_profile():
-    points = list(range(21)); data = {'Point': points, '온도': [np.nan]*len(points), '분': [np.nan]*len(points), '초': [np.nan]*len(points), '구간 시간 (초)': [np.nan]*len(points), '누적 시간 (초)': [np.nan]*len(points), 'ROR (℃/sec)': [np.nan]*len(points)}
-    df = pd.DataFrame(data); df.loc[0, ['분', '초', '누적 시간 (초)']] = 0
-    return df
-
-def create_new_fan_profile():
-    points = list(range(11)); data = {'Point': points, 'Fan (%)': [np.nan]*len(points), '분': [np.nan]*len(points), '초': [np.nan]*len(points), '구간 시간 (초)': [np.nan]*len(points), '누적 시간 (초)': [np.nan]*len(points)}
-    df = pd.DataFrame(data); df.loc[0, ['분', '초', '누적 시간 (초)']] = 0
-    return df
-
-def sync_profile_data(df, primary_input_mode):
-    df = df.reset_index(drop=True); df['Point'] = df.index
-    if df['온도'].isnull().all(): return df
-    last_valid_index = df['온도'].last_valid_index();
-    if last_valid_index is None: return df
-    calc_df = df.loc[0:last_valid_index].copy()
-    if primary_input_mode == '시간 입력':
-        calc_df['누적 시간 (초)'] = calc_df['분'].fillna(0) * 60 + calc_df['초'].fillna(0)
-        calc_df['구간 시간 (초)'] = calc_df['누적 시간 (초)'].diff().shift(-1)
-    elif primary_input_mode == '구간 입력':
-        cumulative_seconds = calc_df['구간 시간 (초)'].fillna(0).cumsum()
-        calc_df['누적 시간 (초)'] = np.concatenate(([0], cumulative_seconds[:-1].values))
-        calc_df['분'] = (calc_df['누적 시간 (초)'] // 60).astype(int)
-        calc_df['초'] = (calc_df['누적 시간 (초)'] % 60).astype(int)
-    delta_temp = calc_df['온도'].diff(); delta_time = calc_df['누적 시간 (초)'].diff()
-    ror = (delta_temp / delta_time).replace([np.inf, -np.inf], 0).fillna(0)
-    calc_df['ROR (℃/sec)'] = ror; df.update(calc_df)
-    return df
-
-def sync_fan_data(df, primary_input_mode):
-    df = df.reset_index(drop=True); df['Point'] = df.index
-    if df['Fan (%)'].isnull().all(): return df
-    last_valid_index = df['Fan (%)'].last_valid_index()
-    if last_valid_index is None: return df
-    calc_df = df.loc[0:last_valid_index].copy()
-    if primary_input_mode == '시간 입력':
-        calc_df['누적 시간 (초)'] = calc_df['분'].fillna(0) * 60 + calc_df['초'].fillna(0)
-        calc_df['구간 시간 (초)'] = calc_df['누적 시간 (초)'].diff().shift(-1)
-    elif primary_input_mode == '구간 입력':
-        cumulative_seconds = calc_df['구간 시간 (초)'].fillna(0).cumsum()
-        calc_df['누적 시간 (초)'] = np.concatenate(([0], cumulative_seconds[:-1].values))
-        calc_df['분'] = (calc_df['누적 시간 (초)'] // 60).astype(int)
-        calc_df['초'] = (calc_df['누적 시간 (초)'] % 60).astype(int)
-    df.update(calc_df)
-    return df
-
 def calculate_ror(df):
-    if df['온도'].isnull().all(): return df
+    if df['온도'].isnull().all(): return df # Assuming '온도' is the relevant column, adjust if needed
     last_valid_index = df['온도'].last_valid_index()
     if last_valid_index is None: return df
     calc_df = df.loc[0:last_valid_index].copy()
@@ -64,16 +17,17 @@ def calculate_ror(df):
     calc_df['ROR (℃/sec)'] = ror; df.update(calc_df)
     return df
 
+
 # --- UI 및 앱 실행 로직 ---
 st.set_page_config(layout="wide")
 st.title("🔥 Ikawa Roast Log Analyzer")
-st.markdown("**(v.0.2 - Graphing)**")
+st.markdown("**(v.0.3 - Adjustments)**") # 버전 업데이트
 
-# --- Session State 초기화 ---
+# --- Session State 초기화 (기본 축 범위 수정) ---
 if 'processed_logs' not in st.session_state: st.session_state.processed_logs = {}
 if 'selected_time' not in st.session_state: st.session_state.selected_time = 0
 if 'axis_ranges' not in st.session_state:
-    st.session_state.axis_ranges = {'x': [0, 600], 'y': [0, 250], 'y2': [-0.5, 1.5]}
+    st.session_state.axis_ranges = {'x': [0, 600], 'y': [60, 300], 'y2': [0, 50]} # 기본 범위 수정
 
 # --- 예상되는 전체 헤더 목록 ---
 expected_headers = [
@@ -90,7 +44,7 @@ INLET_TEMP_COL = 'temp below'
 EXHAUST_ROR_COL = 'ror_above'
 STATE_COL = 'state'
 
-# --- 사이드바 UI ---
+# --- 사이드바 UI (기본값 수정) ---
 with st.sidebar:
     st.header("⚙️ 보기 옵션")
     profile_names_sidebar = list(st.session_state.processed_logs.keys())
@@ -99,13 +53,20 @@ with st.sidebar:
     if not default_selected and profile_names_sidebar:
         default_selected = profile_names_sidebar
     st.session_state.selected_profiles = st.multiselect("그래프에 표시할 로그 선택", options=profile_names_sidebar, default=default_selected)
+
     st.subheader("축 범위 조절")
     axis_ranges = st.session_state.axis_ranges
     col1, col2 = st.columns(2)
     with col1:
-        x_min = st.number_input("X축 최소값(시간)", value=axis_ranges['x'][0]); y_min = st.number_input("Y축(온도) 최소값", value=axis_ranges['y'][0]); y2_min = st.number_input("보조Y축(ROR) 최소값", value=axis_ranges['y2'][0], format="%.2f")
+        # value 수정
+        x_min = st.number_input("X축 최소값(시간)", value=axis_ranges['x'][0])
+        y_min = st.number_input("Y축(온도) 최소값", value=axis_ranges['y'][0])
+        y2_min = st.number_input("보조Y축(ROR) 최소값", value=axis_ranges['y2'][0], format="%.1f") # ROR 포맷 변경 고려
     with col2:
-        x_max = st.number_input("X축 최대값(시간)", value=axis_ranges['x'][1]); y_max = st.number_input("Y축(온도) 최대값", value=axis_ranges['y'][1]); y2_max = st.number_input("보조Y축(ROR) 최대값", value=axis_ranges['y2'][1], format="%.2f")
+        # value 수정
+        x_max = st.number_input("X축 최대값(시간)", value=axis_ranges['x'][1])
+        y_max = st.number_input("Y축(온도) 최대값", value=axis_ranges['y'][1])
+        y2_max = st.number_input("보조Y축(ROR) 최대값", value=axis_ranges['y2'][1], format="%.1f") # ROR 포맷 변경 고려
     st.session_state.axis_ranges = {'x': [x_min, x_max], 'y': [y_min, y_max], 'y2': [y2_min, y2_max]}
 
 # --- 파일 업로드 UI ---
@@ -113,13 +74,12 @@ uploaded_files = st.file_uploader("CSV 로그 파일을 여기에 업로드하�
 
 # --- 데이터 로딩 및 정제 ---
 if uploaded_files:
-    # 파일을 새로 올렸는지 확인하는 플래그
     if 'files_processed' not in st.session_state or st.session_state.uploaded_file_names != [f.name for f in uploaded_files]:
         st.session_state.processed_logs.clear()
         st.session_state.selected_profiles = []
         st.write("---")
         st.subheader("⏳ 파일 처리 중...")
-        
+
         all_files_valid = True
         log_dfs_for_processing = {}
 
@@ -133,34 +93,46 @@ if uploaded_files:
                 stringio.seek(0); header_line = stringio.readline().strip()
                 headers = [h.strip() for h in header_line.split(',')]
                 stringio.seek(0)
-                df = pd.read_csv(stringio, header=None, skiprows=1, skipinitialspace=True, on_bad_lines='skip')
+                # 데이터 읽을 때 에러 라인 무시하도록 수정
+                df = pd.read_csv(stringio, header=None, skiprows=1, skipinitialspace=True, on_bad_lines='warn') # 'skip' 대신 'warn' 사용 고려
                 if len(headers) >= len(df.columns): df.columns = headers[:len(df.columns)]
                 else: df.columns = headers + [f'unknown_{i}' for i in range(len(df.columns) - len(headers))]
                 if df.columns[0] != 'time': raise ValueError("첫 열이 'time'이 아닙니다.")
 
+                # --- 여기가 수정된 부분: 상태 필터링 강화 + 쿨링 제외 ---
                 roasting_df = pd.DataFrame()
                 if STATE_COL in df.columns:
                     df[STATE_COL] = df[STATE_COL].astype(str).str.strip().str.lower()
-                    roasting_mask = df[STATE_COL].str.contains('roasting', case=False, na=False)
-                    if roasting_mask.any():
-                        start_index = df[roasting_mask].index[0]
-                        roasting_df = df.iloc[start_index:].copy()
+                    # 로스팅 시작 지점 찾기
+                    start_mask = df[STATE_COL].str.contains('roasting|ready_for_roast', case=False, na=False)
+                    # 로스팅 종료 지점 찾기 (cooling, cooldown 시작 전까지)
+                    end_mask = df[STATE_COL].str.contains('cooling|cooldown', case=False, na=False)
+
+                    start_index = -1
+                    if start_mask.any():
+                        start_index = df[start_mask].index[0]
+
+                    end_index = len(df) # 기본값은 끝까지
+                    if end_mask.any():
+                        end_index = df[end_mask].index[0]
+
+                    if start_index != -1:
+                        roasting_df = df.iloc[start_index:end_index].copy()
                     else:
-                        ready_mask = df[STATE_COL].str.contains('ready_for_roast', case=False, na=False)
-                        if ready_mask.any():
-                            start_index = df[ready_mask].index[0]
-                            roasting_df = df.iloc[start_index:].copy()
-                        else:
-                            st.warning(f"'{uploaded_file.name}': 로스팅 시작 상태를 찾을 수 없어 전체 데이터를 사용합니다.")
-                            roasting_df = df.copy()
+                        st.warning(f"'{uploaded_file.name}': 로스팅 시작 상태를 찾을 수 없어 전체 데이터를 사용합니다 (쿨링 제외 시도).")
+                        # 쿨링 상태만 제외하고 사용
+                        cooling_mask = df[STATE_COL].str.contains('cooling|cooldown', case=False, na=False)
+                        roasting_df = df[~cooling_mask].copy() # 쿨링 아닌 것만 선택
                 else:
                      st.warning(f"'{uploaded_file.name}': 'state' 열이 없어 전체 데이터를 사용합니다.")
                      roasting_df = df.copy()
+                # --- 수정 끝 ---
+
 
                 if TIME_COL in roasting_df.columns and not roasting_df.empty:
                     start_time = roasting_df[TIME_COL].iloc[0]
                     roasting_df[TIME_COL] = roasting_df[TIME_COL] - start_time
-                
+
                 cols_to_convert = [EXHAUST_TEMP_COL, INLET_TEMP_COL, EXHAUST_ROR_COL]
                 for col in cols_to_convert:
                     if col in roasting_df.columns:
@@ -178,15 +150,12 @@ if uploaded_files:
         if all_files_valid and log_dfs_for_processing:
             st.session_state.processed_logs = log_dfs_for_processing
             st.session_state.selected_profiles = list(log_dfs_for_processing.keys())
-            st.session_state.uploaded_file_names = [f.name for f in uploaded_files] # 처리된 파일 이름 저장
-            st.session_state.files_processed = True # 처리 완료 플래그
+            st.session_state.uploaded_file_names = [f.name for f in uploaded_files]
+            st.session_state.files_processed = True
             st.success("✅ 파일 처리 완료!")
-            # --- 여기가 수정된 부분: st.rerun() 제거 ---
-        else:
-             st.session_state.files_processed = False # 실패 시 플래그 초기화
+            # st.rerun() # 제거됨
 
-# --- 그래프 및 분석 패널 UI (이전과 동일) ---
-# --- 이 블록은 st.session_state.processed_logs 가 채워져 있을 때 실행됩니다 ---
+# --- 그래프 및 분석 패널 UI ---
 if st.session_state.processed_logs:
     st.header("📈 그래프 및 분석")
     graph_col, analysis_col = st.columns([0.7, 0.3])
@@ -200,25 +169,36 @@ if st.session_state.processed_logs:
         fig = make_subplots(specs=[[{"secondary_y": True}]])
         selected_profiles_data = st.session_state.get('selected_profiles', [])
         colors = px.colors.qualitative.Plotly
-        # processed_logs 기준으로 color_map 생성
         color_map = {name: colors[i % len(colors)] for i, name in enumerate(st.session_state.processed_logs.keys())}
+
         for name in selected_profiles_data:
             df = st.session_state.processed_logs.get(name); color = color_map.get(name)
             if df is not None and color is not None:
                 if TIME_COL in df.columns and EXHAUST_TEMP_COL in df.columns:
                     valid_df_exhaust = df.dropna(subset=[TIME_COL, EXHAUST_TEMP_COL])
-                    if len(valid_df_exhaust) > 1: fig.add_trace(go.Scatter(x=valid_df_exhaust[TIME_COL], y=valid_df_exhaust[EXHAUST_TEMP_COL], mode='lines', name=f'{name} 배기', line=dict(color=color, dash='solid'), legendgroup=name), secondary_y=False)
+                    if len(valid_df_exhaust) > 1:
+                        # 이름 변경
+                        fig.add_trace(go.Scatter(x=valid_df_exhaust[TIME_COL], y=valid_df_exhaust[EXHAUST_TEMP_COL], mode='lines', name=f'{name} Exhaust Temp', line=dict(color=color, dash='solid'), legendgroup=name), secondary_y=False)
                 if TIME_COL in df.columns and INLET_TEMP_COL in df.columns:
                      valid_df_inlet = df.dropna(subset=[TIME_COL, INLET_TEMP_COL])
-                     if len(valid_df_inlet) > 1: fig.add_trace(go.Scatter(x=valid_df_inlet[TIME_COL], y=valid_df_inlet[INLET_TEMP_COL], mode='lines', name=f'{name} 투입', line=dict(color=color, dash='dash'), legendgroup=name), secondary_y=False)
+                     if len(valid_df_inlet) > 1:
+                         # 이름 변경
+                         fig.add_trace(go.Scatter(x=valid_df_inlet[TIME_COL], y=valid_df_inlet[INLET_TEMP_COL], mode='lines', name=f'{name} Inlet Temp', line=dict(color=color, dash='dash'), legendgroup=name), secondary_y=False)
                 if TIME_COL in df.columns and EXHAUST_ROR_COL in df.columns:
                     valid_df_ror = df.dropna(subset=[TIME_COL, EXHAUST_ROR_COL])
+                    # Ensure at least 2 points for ROR plotting after removing the first one
                     if len(valid_df_ror) > 1:
-                        ror_df = valid_df_ror.iloc[1:]; fig.add_trace(go.Scatter(x=ror_df[TIME_COL], y=ror_df[EXHAUST_ROR_COL], mode='lines', name=f'{name} ROR', line=dict(color=color, dash='dot'), legendgroup=name, showlegend=False), secondary_y=True)
+                        ror_df = valid_df_ror.iloc[1:]
+                        # Check again if ror_df is not empty after slicing
+                        if not ror_df.empty:
+                            fig.add_trace(go.Scatter(x=ror_df[TIME_COL], y=ror_df[EXHAUST_ROR_COL], mode='lines', name=f'{name} ROR', line=dict(color=color, dash='dot'), legendgroup=name, showlegend=False), secondary_y=True)
+
+
         selected_time_int = int(st.session_state.get('selected_time', 0)); fig.add_vline(x=selected_time_int, line_width=1, line_dash="dash", line_color="grey")
         axis_ranges = st.session_state.axis_ranges
         fig.update_layout(height=700, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
         fig.update_xaxes(range=axis_ranges['x'], title_text='시간 (초)', dtick=60)
+        # 축 범위 수정 반영
         fig.update_yaxes(title_text="온도 (°C)", range=axis_ranges['y'], dtick=10, secondary_y=False)
         fig.update_yaxes(title_text="ROR (℃/sec)", range=axis_ranges['y2'], showgrid=False, secondary_y=True)
         st.plotly_chart(fig, use_container_width=True)
@@ -237,14 +217,12 @@ if st.session_state.processed_logs:
         def update_slider_time():
             st.session_state.selected_time = st.session_state.time_slider
         selected_time_val = st.session_state.get('selected_time', 0)
-        # 슬라이더 최대값이 0보다 크도록 보장
         slider_max_time = max(1, int(max_time))
-        # 현재 선택된 시간이 최대값보다 크면 최대값으로 조정
         if selected_time_val > slider_max_time:
             selected_time_val = slider_max_time
             st.session_state.selected_time = selected_time_val
         st.slider("시간 선택 (초)", 0, slider_max_time, selected_time_val, 1, key="time_slider", on_change=update_slider_time)
-        
+
         st.write(""); st.write("**선택된 시간 상세 정보**")
         selected_time = st.session_state.selected_time; st.markdown(f"#### {int(selected_time // 60)}분 {int(selected_time % 60):02d}초 ({selected_time}초)")
         for name in selected_profiles_data:
@@ -253,6 +231,7 @@ if st.session_state.processed_logs:
             df = st.session_state.processed_logs.get(name)
             if df is not None:
                 if TIME_COL not in df.columns: continue
+                # 이름 변경 반영
                 if EXHAUST_TEMP_COL in df.columns:
                     valid_exhaust = df.dropna(subset=[TIME_COL, EXHAUST_TEMP_COL])
                     if len(valid_exhaust) > 1 and selected_time <= valid_exhaust[TIME_COL].max():
@@ -265,10 +244,10 @@ if st.session_state.processed_logs:
                     valid_ror = df.dropna(subset=[TIME_COL, EXHAUST_ROR_COL])
                     if len(valid_ror) > 1 and selected_time <= valid_ror[TIME_COL].max():
                         hover_ror = np.interp(selected_time, valid_ror[TIME_COL], valid_ror[EXHAUST_ROR_COL]); ror_str = f"{hover_ror:.3f}℃/sec"
-            st.markdown(f"<p style='margin:0; font-size: 0.95em;'>&nbsp;&nbsp;• 배기 온도: {exhaust_temp_str}</p>", unsafe_allow_html=True)
-            st.markdown(f"<p style='margin:0; font-size: 0.95em;'>&nbsp;&nbsp;• 투입 온도: {inlet_temp_str}</p>", unsafe_allow_html=True)
-            st.markdown(f"<p style='margin-bottom:0.8em; font-size: 0.95em;'>&nbsp;&nbsp;• 배기 ROR: {ror_str}</p>", unsafe_allow_html=True)
+            # 이름 변경 반영
+            st.markdown(f"<p style='margin:0; font-size: 0.95em;'>&nbsp;&nbsp;• Exhaust Temp: {exhaust_temp_str}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='margin:0; font-size: 0.95em;'>&nbsp;&nbsp;• Inlet Temp: {inlet_temp_str}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='margin-bottom:0.8em; font-size: 0.95em;'>&nbsp;&nbsp;• Exhaust ROR: {ror_str}</p>", unsafe_allow_html=True)
 
-# 파일 업로드 안내 (파일이 없거나, 업로드 후 처리된 데이터가 없을 때)
 elif not uploaded_files:
     st.info("분석할 CSV 파일을 업로드해주세요.")
