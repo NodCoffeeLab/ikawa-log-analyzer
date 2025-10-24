@@ -7,7 +7,7 @@ st.title("🔥 Ikawa Roast Log Analyzer")
 st.markdown("**(v.0.1 - Initial Setup)**")
 
 uploaded_files = st.file_uploader(
-    "CSV 로그 파일을 여기에 업로드하세요.",
+    "CSV 로그 파일을 여기에 업로드하세요.aaa",
     type="csv",
     accept_multiple_files=True
 )
