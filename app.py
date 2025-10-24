@@ -21,7 +21,7 @@ def calculate_ror(df):
 # --- UI 및 앱 실행 로직 ---
 st.set_page_config(layout="wide")
 st.title("🔥 Ikawa Roast Log Analyzer")
-st.markdown("**(v.0.9 - Dynamic Fan Axis)**") # 버전 업데이트
+st.markdown("**(v.1.0 - Final Fan Axis Scaling)**") # 버전 업데이트
 
 # --- Session State 초기화 (변경 없음) ---
 if 'processed_logs' not in st.session_state: st.session_state.processed_logs = {}
@@ -91,7 +91,6 @@ if uploaded_files:
     current_file_names = sorted([f.name for f in uploaded_files])
     previous_file_names = st.session_state.get('uploaded_file_names', [])
     if current_file_names != previous_file_names:
-        # (코드 생략 - 이전과 동일)
         st.session_state.processed_logs.clear(); st.session_state.selected_profiles = []
         st.write("---"); st.subheader("⏳ 파일 처리 중...")
         all_files_valid = True; log_dfs_for_processing = {}
@@ -146,13 +145,11 @@ if uploaded_files:
             st.success("✅ 파일 처리 완료!")
             st.rerun()
 
-
 # --- 그래프 및 분석 패널 UI ---
 if st.session_state.processed_logs:
     st.header("📈 그래프 및 분석")
     graph_col, analysis_col = st.columns([0.7, 0.3])
     max_time = 0
-    # --- 여기가 수정된 부분: 팬 스케일 확인 로직 추가 ---
     selected_logs = {name: st.session_state.processed_logs[name] for name in st.session_state.get('selected_profiles', []) if name in st.session_state.processed_logs}
     has_high_scale_fan = False
     has_low_scale_fan = False
@@ -165,7 +162,6 @@ if st.session_state.processed_logs:
             if max_fan > FAN_SCALE_THRESHOLD: has_high_scale_fan = True
             else: has_low_scale_fan = True
     max_time = max(max_time, 1)
-    # --- 수정 끝 ---
 
     with graph_col:
         fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_heights=[0.5, 0.25, 0.25], vertical_spacing=0.03, specs=[[{"secondary_y": True}], [{"secondary_y": True}], [{"secondary_y": True}]])
@@ -176,7 +172,6 @@ if st.session_state.processed_logs:
         for name in selected_profiles_data:
             df = st.session_state.processed_logs.get(name); color = color_map.get(name)
             if df is not None and color is not None:
-                # --- 온도/ROR 그래프 (row=1) ---
                 if TIME_COL in df.columns and EXHAUST_TEMP_COL in df.columns:
                     valid_df_exhaust = df.dropna(subset=[TIME_COL, EXHAUST_TEMP_COL])
                     if len(valid_df_exhaust) > 1: fig.add_trace(go.Scatter(x=valid_df_exhaust[TIME_COL], y=valid_df_exhaust[EXHAUST_TEMP_COL], mode='lines', name=f'{name} Exhaust Temp', line=dict(color=color, dash='solid')), row=1, col=1, secondary_y=False)
@@ -188,8 +183,6 @@ if st.session_state.processed_logs:
                     if len(valid_df_ror) > 1:
                         ror_df = valid_df_ror.iloc[1:];
                         if not ror_df.empty: fig.add_trace(go.Scatter(x=ror_df[TIME_COL], y=ror_df[EXHAUST_ROR_COL], mode='lines', name=f'{name} ROR', line=dict(color=color, dash='dot'), showlegend=False), row=1, col=1, secondary_y=True)
-
-                # --- 습도 그래프 (row=2) ---
                 humidity_plotted_row2 = False
                 if TIME_COL in df.columns and HUMIDITY_COL in df.columns:
                      valid_df_hum = df.dropna(subset=[TIME_COL, HUMIDITY_COL])
@@ -201,15 +194,19 @@ if st.session_state.processed_logs:
                      if len(valid_df_hum_roc) > 1:
                          fig.add_trace(go.Scatter(x=valid_df_hum_roc[TIME_COL], y=valid_df_hum_roc[HUMIDITY_ROC_COL], mode='lines', name=f'{name} Humidity RoC', line=dict(color=color, dash='solid'), showlegend=True), row=2, col=1, secondary_y=True)
                          humidity_plotted_row2 = True
-
-                # --- 팬 그래프 (row=3) ---
                 if TIME_COL in df.columns and FAN_SPEED_COL in df.columns:
                     valid_df_fan = df.dropna(subset=[TIME_COL, FAN_SPEED_COL])
                     if len(valid_df_fan) > 1:
-                        if valid_df_fan[FAN_SPEED_COL].max() > FAN_SCALE_THRESHOLD:
+                        is_high_scale = valid_df_fan[FAN_SPEED_COL].max() > FAN_SCALE_THRESHOLD
+                        # --- 여기가 수정된 부분: Low 스케일만 있을 때 Primary Y축 사용 ---
+                        if not has_high_scale_fan and has_low_scale_fan: # Low 스케일만 있는 경우
+                            fig.add_trace(go.Scatter(x=valid_df_fan[TIME_COL], y=valid_df_fan[FAN_SPEED_COL], mode='lines', name=f'{name} Fan Speed (Low)', line=dict(color=color, dash='solid'), showlegend=True), row=3, col=1, secondary_y=False) # Primary Y축에 그리기
+                        elif is_high_scale: # High 스케일이거나 둘 다 있는 경우 High 스케일
                             fig.add_trace(go.Scatter(x=valid_df_fan[TIME_COL], y=valid_df_fan[FAN_SPEED_COL], mode='lines', name=f'{name} Fan Speed (High)', line=dict(color=color, dash='solid'), showlegend=True), row=3, col=1, secondary_y=False)
-                        else:
+                        else: # Low 스케일이고 High 스케일도 함께 있는 경우 Low 스케일
                             fig.add_trace(go.Scatter(x=valid_df_fan[TIME_COL], y=valid_df_fan[FAN_SPEED_COL], mode='lines', name=f'{name} Fan Speed (Low)', line=dict(color=color, dash='solid'), showlegend=True), row=3, col=1, secondary_y=True)
+                        # --- 수정 끝 ---
+
 
         selected_time_int = int(st.session_state.get('selected_time', 0)); fig.add_vline(x=selected_time_int, line_width=1, line_dash="dash", line_color="grey")
         axis_ranges = st.session_state.axis_ranges
@@ -222,16 +219,16 @@ if st.session_state.processed_logs:
         fig.update_yaxes(title_text="Abs Humidity", range=axis_ranges['y_hum1'], row=2, col=1, secondary_y=False)
         fig.update_yaxes(title_text="Humidity RoC", range=axis_ranges['y_hum2'], showgrid=False, row=2, col=1, secondary_y=True)
 
-        # --- 여기가 수정된 부분: 팬 Y축 범위 동적 설정 ---
-        if has_high_scale_fan and not has_low_scale_fan: # High 스케일만 있을 때
-            fig.update_yaxes(title_text="Fan Speed (High)", range=axis_ranges['y_fan1'], row=3, col=1, secondary_y=False)
-            fig.update_yaxes(showticklabels=False, showgrid=False, row=3, col=1, secondary_y=True) # 보조축 숨김
-        elif not has_high_scale_fan and has_low_scale_fan: # Low 스케일만 있을 때
-             fig.update_yaxes(title_text="Fan Speed (Low)", range=axis_ranges['y_fan2'], row=3, col=1, secondary_y=True) # 보조축만 사용
-             fig.update_yaxes(range=axis_ranges['y_fan2'], showticklabels=False, showgrid=False, row=3, col=1, secondary_y=False) # 주축은 범위만 맞추고 숨김
+        # --- 여기가 수정된 부분: 팬 Y축 동적 설정 ---
+        if not has_high_scale_fan and has_low_scale_fan: # Low 스케일만 있을 때
+            fig.update_yaxes(title_text="Fan Speed (Low)", range=axis_ranges['y_fan2'], row=3, col=1, secondary_y=False) # 주축을 Low 스케일로
+            fig.update_yaxes(visible=False, row=3, col=1, secondary_y=True) # 보조축 숨김
+        elif has_high_scale_fan and not has_low_scale_fan: # High 스케일만 있을 때
+            fig.update_yaxes(title_text="Fan Speed (High)", range=axis_ranges['y_fan1'], row=3, col=1, secondary_y=False) # 주축을 High 스케일로
+            fig.update_yaxes(visible=False, row=3, col=1, secondary_y=True) # 보조축 숨김
         elif has_high_scale_fan and has_low_scale_fan: # 둘 다 있을 때
-             fig.update_yaxes(title_text="Fan Speed (High)", range=axis_ranges['y_fan1'], row=3, col=1, secondary_y=False)
-             fig.update_yaxes(title_text="Fan Speed (Low)", range=axis_ranges['y_fan2'], showgrid=False, row=3, col=1, secondary_y=True)
+            fig.update_yaxes(title_text="Fan Speed (High)", range=axis_ranges['y_fan1'], row=3, col=1, secondary_y=False)
+            fig.update_yaxes(title_text="Fan Speed (Low)", range=axis_ranges['y_fan2'], showgrid=False, row=3, col=1, secondary_y=True)
         else: # 팬 데이터 없을 때 (기본값)
             fig.update_yaxes(title_text="Fan Speed (High)", range=axis_ranges['y_fan1'], row=3, col=1, secondary_y=False)
             fig.update_yaxes(title_text="Fan Speed (Low)", range=axis_ranges['y_fan2'], showgrid=False, row=3, col=1, secondary_y=True)
