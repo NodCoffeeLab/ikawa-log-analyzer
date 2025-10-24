@@ -162,7 +162,7 @@ if st.session_state.processed_logs:
     max_time = max(max_time, 1)
 
     with graph_col:
-        fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_heights=[0.5, 0.25, 0.25], vertical_spacing=0.03, specs=[[{"secondary_y": True}], [{"secondary_y": True}], [{"secondary_y": True}]])
+        fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_heights=[0.6, 0.2, 0.2], vertical_spacing=0.03, specs=[[{"secondary_y": True}], [{"secondary_y": True}], [{"secondary_y": True}]])
         selected_profiles_data = st.session_state.get('selected_profiles', [])
         colors = px.colors.qualitative.Plotly
         color_map = {name: colors[i % len(colors)] for i, name in enumerate(st.session_state.processed_logs.keys())}
