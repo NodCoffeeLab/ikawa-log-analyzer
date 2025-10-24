@@ -41,8 +41,8 @@ if 'axis_ranges' not in st.session_state:
         'x': [0, 480],
         'y_temp': [60, 290],     # 온도 Y1
         'y_ror': [0.0, 50.0],    # 온도 Y2 (ROR)
-        'y_fan1': [5000, 15000], # 팬 Y1 (High Scale)
-        'y_fan2': [500, 1500],     # 팬 Y2 (Low Scale) - 기본값 추가
+        'y_fan1': [5500, 15000], # 팬 Y1 (High Scale)
+        'y_fan2': [900, 1500],     # 팬 Y2 (Low Scale) - 기본값 추가
         'y_hum1': [8, 22],      # 습도 Y1 (Abs Hum) - 기본값 조정
         'y_hum2': [-0.01, 0.055] # 습도 Y2 (Hum RoC)
     }
