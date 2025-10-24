@@ -42,8 +42,8 @@ if 'axis_ranges' not in st.session_state:
         'x': [0, 600],
         'y_temp': [60, 290], # 온도 Y축
         'y_ror': [0.0, 50.0],  # ROR 보조 Y축 (범위 조정)
-        'y_fan': [60, 100],  # 팬 속도 Y축
-        'y_hum': [0.0, 0.055]    # 습도 보조 Y축
+        'y_fan': [1000, 15000],  # 팬 속도 Y축
+        'y_hum': [-0.01, 0.055]    # 습도 보조 Y축
     }
 
 # --- 예상되는 전체 헤더 목록 ---
@@ -249,7 +249,7 @@ if st.session_state.processed_logs:
         fig.update_yaxes(title_text="ROR (℃/sec)", range=axis_ranges['y_ror'], showgrid=False, row=1, col=1, secondary_y=True)
         
         # Y축 업데이트 (row=2) - 팬/습도
-        fig.update_yaxes(title_text="Fan Speed (%)", range=axis_ranges['y_fan'], row=2, col=1, secondary_y=False)
+        fig.update_yaxes(title_text="Fan Speed", range=axis_ranges['y_fan'], row=2, col=1, secondary_y=False)
         fig.update_yaxes(title_text="Humidity / RoC", range=axis_ranges['y_hum'], showgrid=False, row=2, col=1, secondary_y=True)
 
         st.plotly_chart(fig, use_container_width=True)
