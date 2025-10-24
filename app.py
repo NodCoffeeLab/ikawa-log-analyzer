@@ -24,19 +24,24 @@ if uploaded_files:
         
         try:
             bytes_data = uploaded_file.getvalue()
-            stringio = io.StringIO(bytes_data.decode('utf-8'))
             
-            # --- 여기가 수정된 부분 ---
-            # 먼저 헤더만 읽어서 첫 번째 열 이름 확인
-            first_cols = pd.read_csv(io.StringIO(bytes_data.decode('utf-8')), nrows=0).columns
+            # --- 여기가 수정된 부분: 인코딩 처리 및 기본 read_csv ---
+            # utf-8-sig를 먼저 시도 (BOM 처리), 실패 시 utf-8 사용
+            try:
+                decoded_data = bytes_data.decode('utf-8-sig')
+            except UnicodeDecodeError:
+                decoded_data = bytes_data.decode('utf-8')
+                
+            stringio = io.StringIO(decoded_data)
             
-            # 첫 번째 열 이름이 'Unnamed: 0' 이거나 비어있는 경우 index_col=0 사용
-            if 'Unnamed: 0' in first_cols[0] or first_cols[0] == '':
-                 df = pd.read_csv(io.StringIO(bytes_data.decode('utf-8')), index_col=0)
-            else:
-                 # 그렇지 않으면 index_col 없이 읽기
-                 df = pd.read_csv(io.StringIO(bytes_data.decode('utf-8')))
+            # index_col 옵션 없이 기본값으로 읽기
+            df = pd.read_csv(stringio)
             # --- 수정 끝 ---
+
+            # 읽은 후 첫 열 이름 확인 (디버깅용 - 문제가 계속되면 이 정보가 필요합니다)
+            first_col_name = df.columns[0]
+            if first_col_name.startswith('Unnamed:'):
+                 st.warning(f"'{uploaded_file.name}' 파일에서 첫 열 이름이 '{first_col_name}'으로 인식되었습니다. 데이터 정렬을 확인해주세요.")
 
             st.session_state.log_data[profile_name] = df
 
