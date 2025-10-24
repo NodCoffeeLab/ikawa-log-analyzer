@@ -29,7 +29,7 @@ if 'selected_time' not in st.session_state: st.session_state.selected_time = 0
 if 'axis_ranges' not in st.session_state:
     st.session_state.axis_ranges = {
         'x': [0, 480],
-        'y_temp': [60, 290],     # 온도 Y1
+        'y_temp': [60, 280],     # 온도 Y1
         'y_ror': [0.0, 50.0],    # 온도 Y2 (ROR)
         'y_fan1': [5500, 15000], # 팬 Y1 (High Scale)
         'y_fan2': [900, 1500],   # 팬 Y2 (Low Scale)
@@ -169,7 +169,7 @@ if st.session_state.processed_logs:
     with graph_col:
         # --- 여기가 수정된 부분: 3행 그래프 및 스타일/순서 변경 ---
         fig = make_subplots(rows=3, cols=1, shared_xaxes=True,
-                            row_heights=[0.5, 0.25, 0.25], # 높이 비율 유지 (필요시 조정)
+                            row_heights=[0.6, 0.2, 0.2], # 높이 비율 유지 (필요시 조정)
                             vertical_spacing=0.03,
                             specs=[[{"secondary_y": True}], [{"secondary_y": True}], [{"secondary_y": True}]]) # 모든 행에 보조 Y축
 
