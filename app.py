@@ -40,9 +40,9 @@ if 'selected_time' not in st.session_state: st.session_state.selected_time = 0
 if 'axis_ranges' not in st.session_state:
     st.session_state.axis_ranges = {
         'x': [0, 600],
-        'y_temp': [60, 300], # 온도 Y축
-        'y_ror': [0.0, 5.0],  # ROR 보조 Y축 (범위 조정)
-        'y_fan': [0, 100],  # 팬 속도 Y축
+        'y_temp': [60, 290], # 온도 Y축
+        'y_ror': [0.0, 50.0],  # ROR 보조 Y축 (범위 조정)
+        'y_fan': [60, 100],  # 팬 속도 Y축
         'y_hum': [0, 20]    # 습도 보조 Y축
     }
 
