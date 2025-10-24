@@ -30,7 +30,7 @@ if 'axis_ranges' not in st.session_state:
     st.session_state.axis_ranges = {
         'x': [0, 480], 'y_temp': [60, 290], 'y_ror': [0.0, 50.0],
         'y_fan1': [5500, 15000], 'y_fan2': [900, 1500],
-        'y_hum1': [8, 22], 'y_hum2': [-0.01, 0.06]
+        'y_hum1': [8, 22], 'y_hum2': [-0.04, 0.06]
     }
 
 # --- 예상되는 전체 헤더 목록 ---
