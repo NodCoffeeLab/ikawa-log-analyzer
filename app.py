@@ -64,7 +64,6 @@ def calculate_ror(df):
     calc_df['ROR (℃/sec)'] = ror; df.update(calc_df)
     return df
 
-
 # --- UI 및 앱 실행 로직 ---
 st.set_page_config(layout="wide")
 st.title("🔥 Ikawa Roast Log Analyzer")
@@ -114,80 +113,80 @@ uploaded_files = st.file_uploader("CSV 로그 파일을 여기에 업로드하�
 
 # --- 데이터 로딩 및 정제 ---
 if uploaded_files:
-    st.session_state.processed_logs.clear()
-    st.session_state.selected_profiles = []
-    st.write("---")
-    st.subheader("⏳ 파일 처리 중...")
-    
-    all_files_valid = True
-    log_dfs_for_processing = {}
+    # 파일을 새로 올렸는지 확인하는 플래그
+    if 'files_processed' not in st.session_state or st.session_state.uploaded_file_names != [f.name for f in uploaded_files]:
+        st.session_state.processed_logs.clear()
+        st.session_state.selected_profiles = []
+        st.write("---")
+        st.subheader("⏳ 파일 처리 중...")
+        
+        all_files_valid = True
+        log_dfs_for_processing = {}
 
-    for uploaded_file in uploaded_files:
-        profile_name = uploaded_file.name.replace('.csv', '')
-        try:
-            bytes_data = uploaded_file.getvalue()
-            try: decoded_data = bytes_data.decode('utf-8-sig')
-            except UnicodeDecodeError: decoded_data = bytes_data.decode('utf-8')
-            stringio = io.StringIO(decoded_data)
-            stringio.seek(0); header_line = stringio.readline().strip()
-            headers = [h.strip() for h in header_line.split(',')]
-            stringio.seek(0)
-            df = pd.read_csv(stringio, header=None, skiprows=1, skipinitialspace=True, on_bad_lines='skip')
-            if len(headers) >= len(df.columns): df.columns = headers[:len(df.columns)]
-            else: df.columns = headers + [f'unknown_{i}' for i in range(len(df.columns) - len(headers))]
-            if df.columns[0] != 'time': raise ValueError("첫 열이 'time'이 아닙니다.")
+        for uploaded_file in uploaded_files:
+            profile_name = uploaded_file.name.replace('.csv', '')
+            try:
+                bytes_data = uploaded_file.getvalue()
+                try: decoded_data = bytes_data.decode('utf-8-sig')
+                except UnicodeDecodeError: decoded_data = bytes_data.decode('utf-8')
+                stringio = io.StringIO(decoded_data)
+                stringio.seek(0); header_line = stringio.readline().strip()
+                headers = [h.strip() for h in header_line.split(',')]
+                stringio.seek(0)
+                df = pd.read_csv(stringio, header=None, skiprows=1, skipinitialspace=True, on_bad_lines='skip')
+                if len(headers) >= len(df.columns): df.columns = headers[:len(df.columns)]
+                else: df.columns = headers + [f'unknown_{i}' for i in range(len(df.columns) - len(headers))]
+                if df.columns[0] != 'time': raise ValueError("첫 열이 'time'이 아닙니다.")
 
-            # --- 여기가 수정된 부분: 상태 필터링 강화 ---
-            roasting_df = pd.DataFrame() # 빈 데이터프레임으로 초기화
-            if STATE_COL in df.columns:
-                # state 열의 문자열 앞뒤 공백 제거 및 소문자 변환
-                df[STATE_COL] = df[STATE_COL].astype(str).str.strip().str.lower()
-                
-                # 'roasting' 문자열 포함 행 찾기
-                roasting_mask = df[STATE_COL].str.contains('roasting', case=False, na=False)
-                
-                if roasting_mask.any():
-                    start_index = df[roasting_mask].index[0]
-                    roasting_df = df.iloc[start_index:].copy()
-                else:
-                    # 'ready_for_roast' 찾기 (roasting 없을 경우)
-                    ready_mask = df[STATE_COL].str.contains('ready_for_roast', case=False, na=False)
-                    if ready_mask.any():
-                        start_index = df[ready_mask].index[0]
+                roasting_df = pd.DataFrame()
+                if STATE_COL in df.columns:
+                    df[STATE_COL] = df[STATE_COL].astype(str).str.strip().str.lower()
+                    roasting_mask = df[STATE_COL].str.contains('roasting', case=False, na=False)
+                    if roasting_mask.any():
+                        start_index = df[roasting_mask].index[0]
                         roasting_df = df.iloc[start_index:].copy()
                     else:
-                        st.warning(f"'{uploaded_file.name}': 로스팅 시작 상태('roasting' 또는 'ready_for_roast')를 찾을 수 없어 전체 데이터를 사용합니다.")
-                        roasting_df = df.copy() # 그래도 못 찾으면 전체 사용
-            else:
-                 st.warning(f"'{uploaded_file.name}': 'state' 열이 없어 전체 데이터를 사용합니다.")
-                 roasting_df = df.copy()
-            # --- 수정 끝 ---
-
-            if TIME_COL in roasting_df.columns and not roasting_df.empty:
-                start_time = roasting_df[TIME_COL].iloc[0]
-                roasting_df[TIME_COL] = roasting_df[TIME_COL] - start_time
-            
-            cols_to_convert = [EXHAUST_TEMP_COL, INLET_TEMP_COL, EXHAUST_ROR_COL]
-            for col in cols_to_convert:
-                if col in roasting_df.columns:
-                    roasting_df[col] = pd.to_numeric(roasting_df[col], errors='coerce')
+                        ready_mask = df[STATE_COL].str.contains('ready_for_roast', case=False, na=False)
+                        if ready_mask.any():
+                            start_index = df[ready_mask].index[0]
+                            roasting_df = df.iloc[start_index:].copy()
+                        else:
+                            st.warning(f"'{uploaded_file.name}': 로스팅 시작 상태를 찾을 수 없어 전체 데이터를 사용합니다.")
+                            roasting_df = df.copy()
                 else:
-                    st.warning(f"'{uploaded_file.name}': 필수 열 '{col}'이 없습니다.")
-                    roasting_df[col] = np.nan
+                     st.warning(f"'{uploaded_file.name}': 'state' 열이 없어 전체 데이터를 사용합니다.")
+                     roasting_df = df.copy()
 
-            log_dfs_for_processing[profile_name] = roasting_df
+                if TIME_COL in roasting_df.columns and not roasting_df.empty:
+                    start_time = roasting_df[TIME_COL].iloc[0]
+                    roasting_df[TIME_COL] = roasting_df[TIME_COL] - start_time
+                
+                cols_to_convert = [EXHAUST_TEMP_COL, INLET_TEMP_COL, EXHAUST_ROR_COL]
+                for col in cols_to_convert:
+                    if col in roasting_df.columns:
+                        roasting_df[col] = pd.to_numeric(roasting_df[col], errors='coerce')
+                    else:
+                        st.warning(f"'{uploaded_file.name}': 필수 열 '{col}'이 없습니다.")
+                        roasting_df[col] = np.nan
 
-        except Exception as e:
-            st.error(f"'{uploaded_file.name}' 파일을 처리하는 중 오류 발생: {e}")
-            all_files_valid = False
+                log_dfs_for_processing[profile_name] = roasting_df
 
-    if all_files_valid and log_dfs_for_processing:
-        st.session_state.processed_logs = log_dfs_for_processing
-        st.session_state.selected_profiles = list(log_dfs_for_processing.keys())
-        st.success("✅ 파일 처리 완료!")
-        st.rerun()
+            except Exception as e:
+                st.error(f"'{uploaded_file.name}' 파일을 처리하는 중 오류 발생: {e}")
+                all_files_valid = False
+
+        if all_files_valid and log_dfs_for_processing:
+            st.session_state.processed_logs = log_dfs_for_processing
+            st.session_state.selected_profiles = list(log_dfs_for_processing.keys())
+            st.session_state.uploaded_file_names = [f.name for f in uploaded_files] # 처리된 파일 이름 저장
+            st.session_state.files_processed = True # 처리 완료 플래그
+            st.success("✅ 파일 처리 완료!")
+            # --- 여기가 수정된 부분: st.rerun() 제거 ---
+        else:
+             st.session_state.files_processed = False # 실패 시 플래그 초기화
 
 # --- 그래프 및 분석 패널 UI (이전과 동일) ---
+# --- 이 블록은 st.session_state.processed_logs 가 채워져 있을 때 실행됩니다 ---
 if st.session_state.processed_logs:
     st.header("📈 그래프 및 분석")
     graph_col, analysis_col = st.columns([0.7, 0.3])
@@ -201,6 +200,7 @@ if st.session_state.processed_logs:
         fig = make_subplots(specs=[[{"secondary_y": True}]])
         selected_profiles_data = st.session_state.get('selected_profiles', [])
         colors = px.colors.qualitative.Plotly
+        # processed_logs 기준으로 color_map 생성
         color_map = {name: colors[i % len(colors)] for i, name in enumerate(st.session_state.processed_logs.keys())}
         for name in selected_profiles_data:
             df = st.session_state.processed_logs.get(name); color = color_map.get(name)
@@ -237,7 +237,14 @@ if st.session_state.processed_logs:
         def update_slider_time():
             st.session_state.selected_time = st.session_state.time_slider
         selected_time_val = st.session_state.get('selected_time', 0)
-        st.slider("시간 선택 (초)", 0, int(max_time), selected_time_val, 1, key="time_slider", on_change=update_slider_time)
+        # 슬라이더 최대값이 0보다 크도록 보장
+        slider_max_time = max(1, int(max_time))
+        # 현재 선택된 시간이 최대값보다 크면 최대값으로 조정
+        if selected_time_val > slider_max_time:
+            selected_time_val = slider_max_time
+            st.session_state.selected_time = selected_time_val
+        st.slider("시간 선택 (초)", 0, slider_max_time, selected_time_val, 1, key="time_slider", on_change=update_slider_time)
+        
         st.write(""); st.write("**선택된 시간 상세 정보**")
         selected_time = st.session_state.selected_time; st.markdown(f"#### {int(selected_time // 60)}분 {int(selected_time % 60):02d}초 ({selected_time}초)")
         for name in selected_profiles_data:
@@ -261,5 +268,7 @@ if st.session_state.processed_logs:
             st.markdown(f"<p style='margin:0; font-size: 0.95em;'>&nbsp;&nbsp;• 배기 온도: {exhaust_temp_str}</p>", unsafe_allow_html=True)
             st.markdown(f"<p style='margin:0; font-size: 0.95em;'>&nbsp;&nbsp;• 투입 온도: {inlet_temp_str}</p>", unsafe_allow_html=True)
             st.markdown(f"<p style='margin-bottom:0.8em; font-size: 0.95em;'>&nbsp;&nbsp;• 배기 ROR: {ror_str}</p>", unsafe_allow_html=True)
+
+# 파일 업로드 안내 (파일이 없거나, 업로드 후 처리된 데이터가 없을 때)
 elif not uploaded_files:
     st.info("분석할 CSV 파일을 업로드해주세요.")
