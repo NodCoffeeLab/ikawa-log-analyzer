@@ -254,7 +254,7 @@ if st.session_state.processed_logs:
 
         selected_time_int = int(st.session_state.get('selected_time', 0)); fig.add_vline(x=selected_time_int, line_width=1, line_dash="dash", line_color="grey")
         axis_ranges = st.session_state.axis_ranges
-        fig.update_layout(height=900, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+        fig.update_layout(height=1000, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
 
         # X축 업데이트 (상위 2개 눈금 숨김)
         fig.update_xaxes(range=axis_ranges['x'], showticklabels=False, dtick=60, row=1, col=1)
