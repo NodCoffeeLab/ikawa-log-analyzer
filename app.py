@@ -13,7 +13,6 @@ uploaded_files = st.file_uploader(
 )
 
 # --- 예상되는 전체 헤더 목록 ---
-# (일반 모델과 X 모델에 공통적으로 존재하는 헤더 + X 모델에만 있는 헤더 순서대로)
 expected_headers = [
     'time', 'fan set', 'setpoint', 'fan speed', 'temp above', 'state',
     'heater', 'p', 'i', 'd', 'temp below', 'temp board', 'j', 'ror_above',
@@ -43,23 +42,22 @@ if uploaded_files:
                 
             stringio = io.StringIO(decoded_data)
 
-            # --- 여기가 수정된 부분: header=0과 names 옵션 사용 ---
-            # 먼저 파일에 몇 개의 열이 있는지 확인
-            temp_df_for_col_count = pd.read_csv(io.StringIO(decoded_data), nrows=1)
-            num_cols = len(temp_df_for_col_count.columns)
-
-            # 파일의 열 개수에 맞는 헤더 목록 생성
-            current_headers = expected_headers[:num_cols]
-
-            # header=0 (첫 줄을 헤더로 인식), names로 강제 지정, skiprows=1로 헤더 줄 건너뛰기
-            stringio.seek(0) # StringIO 커서를 다시 처음으로 이동
-            df = pd.read_csv(stringio, header=0, names=current_headers, skiprows=1)
-            # --- 수정 끝 ---
-
-            # 첫 열 이름이 time인지 다시 확인 (검증용)
+            # --- 여기가 수정된 부분: 헤더 확인 후 재처리 ---
+            # 1. 일단 기본으로 읽어본다
+            df = pd.read_csv(stringio)
+            
+            # 2. 첫 열 이름이 'time'이 아닌지 확인 (헤더가 밀렸는지 검사)
             if df.columns[0] != 'time':
-                 st.warning(f"'{uploaded_file.name}': 첫 열 이름이 'time'이 아닙니다 ('{df.columns[0]}'). 데이터 로딩에 문제가 있을 수 있습니다.")
-
+                st.warning(f"'{uploaded_file.name}' 파일 헤더 자동 감지 실패. 수동으로 재지정합니다.")
+                # 3. 헤더 없이 다시 읽고, 올바른 헤더 목록 수동 지정
+                stringio.seek(0) # 커서 처음으로
+                df = pd.read_csv(stringio, header=None, skiprows=1) # 헤더 없이 읽고, 실제 헤더 줄은 건너뜀
+                
+                # 파일의 실제 열 개수에 맞춰 헤더 목록 준비
+                num_cols = len(df.columns)
+                current_headers = expected_headers[:num_cols]
+                df.columns = current_headers # 헤더 수동 지정
+            # --- 수정 끝 ---
 
             st.session_state.log_data[profile_name] = df
 
