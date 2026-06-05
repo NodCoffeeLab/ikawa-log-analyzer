@@ -21,7 +21,7 @@ def calculate_ror(df):
 # --- UI 및 앱 실행 로직 ---
 st.set_page_config(layout="wide")
 st.title("🔥 Ikawa Roast Log Analyzer")
-st.markdown("**(v.1.0 2025.10.24)**") # 버전 업데이트
+st.markdown("**(v.1.1 2026.06.05)**") # 버전 업데이트
 
 # --- Session State 초기화 (변경 없음) ---
 if 'processed_logs' not in st.session_state: st.session_state.processed_logs = {}
@@ -181,18 +181,23 @@ if st.session_state.processed_logs:
                     valid_df_ror = df.dropna(subset=[TIME_COL, EXHAUST_ROR_COL])
                     if len(valid_df_ror) > 1:
                         ror_df = valid_df_ror.iloc[1:];
-                        if not ror_df.empty: fig.add_trace(go.Scatter(x=ror_df[TIME_COL], y=ror_df[EXHAUST_ROR_COL], mode='lines', name=f'{name} ROR', line=dict(color=color, dash='dot'), showlegend=False), row=1, col=1, secondary_y=True)
+                        # 업데이트 기능 1: showlegend=True 로 변경하여 ROR 그래프 숨기기 가능하게 수정
+                        if not ror_df.empty: fig.add_trace(go.Scatter(x=ror_df[TIME_COL], y=ror_df[EXHAUST_ROR_COL], mode='lines', name=f'{name} ROR', line=dict(color=color, dash='dot'), showlegend=True), row=1, col=1, secondary_y=True)
+                
                 humidity_plotted_row2 = False
+                
+                # 업데이트 기능 2: 습도 값이 0이 아닌 경우에만 그래프에 추가
                 if TIME_COL in df.columns and HUMIDITY_COL in df.columns:
                      valid_df_hum = df.dropna(subset=[TIME_COL, HUMIDITY_COL])
-                     if len(valid_df_hum) > 1:
+                     if len(valid_df_hum) > 1 and not (valid_df_hum[HUMIDITY_COL] == 0).all():
                          fig.add_trace(go.Scatter(x=valid_df_hum[TIME_COL], y=valid_df_hum[HUMIDITY_COL], mode='lines', name=f'{name} Humidity', line=dict(color=color, dash='solid'), showlegend=True), row=2, col=1, secondary_y=False)
                          humidity_plotted_row2 = True
                 if TIME_COL in df.columns and HUMIDITY_ROC_COL in df.columns:
                      valid_df_hum_roc = df.dropna(subset=[TIME_COL, HUMIDITY_ROC_COL])
-                     if len(valid_df_hum_roc) > 1:
+                     if len(valid_df_hum_roc) > 1 and not (valid_df_hum_roc[HUMIDITY_ROC_COL] == 0).all():
                          fig.add_trace(go.Scatter(x=valid_df_hum_roc[TIME_COL], y=valid_df_hum_roc[HUMIDITY_ROC_COL], mode='lines', name=f'{name} Humidity RoC', line=dict(color=color, dash='solid'), showlegend=True), row=2, col=1, secondary_y=True)
                          humidity_plotted_row2 = True
+                         
                 if TIME_COL in df.columns and FAN_SPEED_COL in df.columns:
                     valid_df_fan = df.dropna(subset=[TIME_COL, FAN_SPEED_COL])
                     if len(valid_df_fan) > 1:
@@ -228,12 +233,12 @@ if st.session_state.processed_logs:
             fig.update_yaxes(title_text="Fan Speed (Low)", range=axis_ranges['y_fan2'], showgrid=False, row=3, col=1, secondary_y=True)
         st.plotly_chart(fig, use_container_width=True)
 
-    # --- 여기가 수정된 부분: 분석 패널 코드 복원 ---
+    # --- 분석 패널 코드 (변경 없음) ---
     with analysis_col:
         st.subheader("🔍 분석 정보"); st.markdown("---")
         st.write("**총 로스팅 시간**")
-        for name in selected_profiles_data: # selected_profiles_data 사용
-            df = st.session_state.processed_logs.get(name) # processed_logs 사용
+        for name in selected_profiles_data: 
+            df = st.session_state.processed_logs.get(name) 
             if df is not None and TIME_COL in df.columns:
                 valid_df = df.dropna(subset=[TIME_COL])
                 if not valid_df.empty:
@@ -250,11 +255,11 @@ if st.session_state.processed_logs:
         st.slider("시간 선택 (초)", 0, slider_max_time, selected_time_val, 1, key="time_slider", on_change=update_slider_time)
         st.write(""); st.write("**선택된 시간 상세 정보**")
         selected_time = st.session_state.selected_time; st.markdown(f"#### {int(selected_time // 60)}분 {int(selected_time % 60):02d}초 ({selected_time}초)")
-        for name in selected_profiles_data: # selected_profiles_data 사용
+        for name in selected_profiles_data: 
             st.markdown(f"<p style='margin-bottom: 0.2em;'><strong>{name}</strong></p>", unsafe_allow_html=True)
             exhaust_temp_str, inlet_temp_str, ror_str = "--", "--", "--"
             fan_speed_str, humidity_str, humidity_roc_str = "--", "--", "--"
-            df = st.session_state.processed_logs.get(name) # processed_logs 사용
+            df = st.session_state.processed_logs.get(name) 
             if df is not None:
                 if TIME_COL not in df.columns: continue
                 if EXHAUST_TEMP_COL in df.columns:
@@ -281,7 +286,6 @@ if st.session_state.processed_logs:
             st.markdown(f"<p style='margin:0; font-size: 0.95em;'>&nbsp;&nbsp;• Fan Speed: {fan_speed_str}</p>", unsafe_allow_html=True)
             st.markdown(f"<p style='margin:0; font-size: 0.95em;'>&nbsp;&nbsp;• Abs Humidity: {humidity_str}</p>", unsafe_allow_html=True)
             st.markdown(f"<p style='margin-bottom:0.8em; font-size: 0.95em;'>&nbsp;&nbsp;• Humidity RoC: {humidity_roc_str}</p>", unsafe_allow_html=True)
-    # --- 분석 패널 코드 복원 끝 ---
 
 elif not uploaded_files:
     st.info("분석할 CSV 파일을 업로드해주세요.")
