@@ -174,29 +174,42 @@ if st.session_state.processed_logs:
                 if TIME_COL in df.columns and EXHAUST_TEMP_COL in df.columns:
                     valid_df_exhaust = df.dropna(subset=[TIME_COL, EXHAUST_TEMP_COL])
                     if len(valid_df_exhaust) > 1: fig.add_trace(go.Scatter(x=valid_df_exhaust[TIME_COL], y=valid_df_exhaust[EXHAUST_TEMP_COL], mode='lines', name=f'{name} Exhaust Temp', line=dict(color=color, dash='solid')), row=1, col=1, secondary_y=False)
+                
                 if TIME_COL in df.columns and INLET_TEMP_COL in df.columns:
                      valid_df_inlet = df.dropna(subset=[TIME_COL, INLET_TEMP_COL])
                      if len(valid_df_inlet) > 1: fig.add_trace(go.Scatter(x=valid_df_inlet[TIME_COL], y=valid_df_inlet[INLET_TEMP_COL], mode='lines', name=f'{name} Inlet Temp', line=dict(color=color, dash='solid')), row=1, col=1, secondary_y=False)
+                
                 if TIME_COL in df.columns and EXHAUST_ROR_COL in df.columns:
                     valid_df_ror = df.dropna(subset=[TIME_COL, EXHAUST_ROR_COL])
                     if len(valid_df_ror) > 1:
-                        ror_df = valid_df_ror.iloc[1:];
+                        ror_df = valid_df_ror.iloc[1:]
                         # 업데이트 기능 1: showlegend=True 로 변경하여 ROR 그래프 숨기기 가능하게 수정
                         if not ror_df.empty: fig.add_trace(go.Scatter(x=ror_df[TIME_COL], y=ror_df[EXHAUST_ROR_COL], mode='lines', name=f'{name} ROR', line=dict(color=color, dash='dot'), showlegend=True), row=1, col=1, secondary_y=True)
                 
                 humidity_plotted_row2 = False
                 
-                # 업데이트 기능 2: 습도 값이 0이 아닌 경우에만 그래프에 추가
+                # 업데이트 기능 2: 습도 값이 없거나 0일 경우, 축을 보존하기 위해 보이지 않는 트레이스를 추가
                 if TIME_COL in df.columns and HUMIDITY_COL in df.columns:
-                     valid_df_hum = df.dropna(subset=[TIME_COL, HUMIDITY_COL])
-                     if len(valid_df_hum) > 1 and not (valid_df_hum[HUMIDITY_COL] == 0).all():
-                         fig.add_trace(go.Scatter(x=valid_df_hum[TIME_COL], y=valid_df_hum[HUMIDITY_COL], mode='lines', name=f'{name} Humidity', line=dict(color=color, dash='solid'), showlegend=True), row=2, col=1, secondary_y=False)
-                         humidity_plotted_row2 = True
+                    valid_time_df = df.dropna(subset=[TIME_COL])
+                    if len(valid_time_df) > 1:
+                        valid_df_hum = valid_time_df.dropna(subset=[HUMIDITY_COL])
+                        if valid_df_hum.empty or (valid_df_hum[HUMIDITY_COL] == 0).all():
+                            # 데이터가 없거나 전부 0인 경우 (축 유지를 위한 빈 트레이스 추가)
+                            fig.add_trace(go.Scatter(x=valid_time_df[TIME_COL], y=[np.nan]*len(valid_time_df), mode='lines', showlegend=False, hoverinfo='skip'), row=2, col=1, secondary_y=False)
+                        else:
+                            # 정상 데이터
+                            fig.add_trace(go.Scatter(x=valid_df_hum[TIME_COL], y=valid_df_hum[HUMIDITY_COL], mode='lines', name=f'{name} Humidity', line=dict(color=color, dash='solid'), showlegend=True), row=2, col=1, secondary_y=False)
+                        humidity_plotted_row2 = True
+                
                 if TIME_COL in df.columns and HUMIDITY_ROC_COL in df.columns:
-                     valid_df_hum_roc = df.dropna(subset=[TIME_COL, HUMIDITY_ROC_COL])
-                     if len(valid_df_hum_roc) > 1 and not (valid_df_hum_roc[HUMIDITY_ROC_COL] == 0).all():
-                         fig.add_trace(go.Scatter(x=valid_df_hum_roc[TIME_COL], y=valid_df_hum_roc[HUMIDITY_ROC_COL], mode='lines', name=f'{name} Humidity RoC', line=dict(color=color, dash='solid'), showlegend=True), row=2, col=1, secondary_y=True)
-                         humidity_plotted_row2 = True
+                    valid_time_df = df.dropna(subset=[TIME_COL])
+                    if len(valid_time_df) > 1:
+                        valid_df_hum_roc = valid_time_df.dropna(subset=[HUMIDITY_ROC_COL])
+                        if valid_df_hum_roc.empty or (valid_df_hum_roc[HUMIDITY_ROC_COL] == 0).all():
+                            fig.add_trace(go.Scatter(x=valid_time_df[TIME_COL], y=[np.nan]*len(valid_time_df), mode='lines', showlegend=False, hoverinfo='skip'), row=2, col=1, secondary_y=True)
+                        else:
+                            fig.add_trace(go.Scatter(x=valid_df_hum_roc[TIME_COL], y=valid_df_hum_roc[HUMIDITY_ROC_COL], mode='lines', name=f'{name} Humidity RoC', line=dict(color=color, dash='solid'), showlegend=True), row=2, col=1, secondary_y=True)
+                        humidity_plotted_row2 = True
                          
                 if TIME_COL in df.columns and FAN_SPEED_COL in df.columns:
                     valid_df_fan = df.dropna(subset=[TIME_COL, FAN_SPEED_COL])
@@ -219,6 +232,7 @@ if st.session_state.processed_logs:
         fig.update_yaxes(title_text="ROR (℃/sec)", range=axis_ranges['y_ror'], showgrid=False, row=1, col=1, secondary_y=True)
         fig.update_yaxes(title_text="Abs Humidity", range=axis_ranges['y_hum1'], row=2, col=1, secondary_y=False)
         fig.update_yaxes(title_text="Humidity RoC", range=axis_ranges['y_hum2'], showgrid=False, row=2, col=1, secondary_y=True)
+        
         if not has_high_scale_fan and has_low_scale_fan:
             fig.update_yaxes(title_text="Fan Speed (Low)", range=axis_ranges['y_fan2'], row=3, col=1, secondary_y=False)
             fig.update_yaxes(visible=False, row=3, col=1, secondary_y=True)
